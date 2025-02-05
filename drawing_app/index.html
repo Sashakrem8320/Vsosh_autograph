@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drawing App</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            touch-action: none; /* Отключаем стандартное поведение касания */
+        }
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ваш автограф</h1>
+    <canvas id="drawingCanvas" width="800" height="600"></canvas>
+    <button id="sendButton">Отправить G-code на сервер</button>
+    <pre id="gcodeOutput"></pre>
+    <script>
+        const CANVAS_WIDTH = 400; // Константа для ширины канваса
+        const CANVAS_HEIGHT = 400; // Константа для высоты канваса
+
+        const canvas = document.getElementById('drawingCanvas');
+        canvas.width = CANVAS_WIDTH; // Устанавливаем ширину канваса
+        canvas.height = CANVAS_HEIGHT; // Устанавливаем высоту канваса
+        const ctx = canvas.getContext('2d');
+        const sendButton = document.getElementById('sendButton');
+        let drawing = false;
+        let path = []; // Массив для хранения G-code команд
+        const scaleFactor = 7; // Коэффициент масштабирования
+        let lastX, lastY; // Для хранения предыдущих координат
+
+        // Функция для начала рисования
+        function startDrawing(x, y) {
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            drawing = true;
+            lastX = x;
+            lastY = y;
+            path.push('M3 S40'); // Поднять ручку
+            path.push(`G1 F10000`); // Установить скорость
+            path.push(`G1 X${((canvas.width - x) / scaleFactor).toFixed(2)} Y${(y / scaleFactor).toFixed(2)}`); // Переместиться к начальной точке
+            path.push('M5 S40'); // Опустить ручку
+        }
+
+        // Функция для рисования
+        function draw(x, y) {
+            if (drawing) {
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                path.push(`G1 X${((canvas.width - x) / scaleFactor).toFixed(2)} Y${(y / scaleFactor).toFixed(2)}`); // Рисуем линию
+                lastX = x; // Обновляем последние координаты
+                lastY = y;
+            }
+        }
+
+        // Получаем координаты касания или мыши
+        function getCoordinates(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX || (e.touches[0].clientX);
+            const y = e.clientY || (e.touches[0].clientY);
+            return { x: x - rect.left, y: y - rect.top };
+        }
+
+        // Обработчики событий для мыши
+        canvas.addEventListener('mousedown', (e) => {
+            const coords = getCoordinates(e);
+            startDrawing(coords.x, coords.y);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const coords = getCoordinates(e);
+            draw(coords.x, coords.y);
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            drawing = false;
+            ctx.beginPath();
+            path.push('M3 S40'); // Поднять ручку
+            path.push('G4 P0.2'); // Задержка
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            drawing = false;
+            ctx.beginPath();
+            path.push('M3 S40'); // Поднять ручку
+            path.push('G4 P0.2'); // Задержка
+        });
+
+        // Обработчики событий для касания
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Предотвращаем прокрутку страницы
+            const coords = getCoordinates(e);
+            startDrawing(coords.x, coords.y);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Предотвращаем прокрутку страницы
+            const coords = getCoordinates(e);
+            draw(coords.x, coords.y);
+        });
+
+        canvas.addEventListener('touchend', () => {
+            drawing = false;
+            ctx.beginPath();
+            path.push('M3 S40'); // Поднять ручку
+            path.push('G4 P0.2'); // Задержка
+        });
+
+        // Отправка G-code на сервер
+        sendButton.addEventListener('click', () => {
+            // Завершение рисования
+            path.push('M3 S40'); // Поднять ручку
+            path.push('G4 P0.2'); // Задержка
+            path.push('G1 F10000'); // Установить скорость
+            path.push(`G1 X${((canvas.width - 0) / scaleFactor).toFixed(2)} Y${(0 / scaleFactor).toFixed(2)}`); // Вернуться в начальную точку
+
+            const gcode = path.join('\n');
+            fetch('/save-gcode', {
+                method: 'POST',
+                body: gcode,
+                headers: {
+                    'Content-Type': 'text/plain'
+                }
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log(data);
+                alert('G-code успешно сохранен на сервере!');
+                document.getElementById('gcodeOutput').innerText = gcode; // Отображаем сгенерированный G-code на странице
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert('Произошла ошибка при отправке G-code на сервер.');
+            });
+        });
+    </script>
+</body>
+</html>
