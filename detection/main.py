@@ -4,7 +4,9 @@ from ultralytics import YOLO
 import serial.tools.list_ports
 import find
 import time
-
+import cv2
+model = YOLO('best.pt')
+model.fuse()
 # Функция для открытия последовательного порта
 def open_serial_port():
     ports = serial.tools.list_ports.comports()  # Получаем список доступных портов
@@ -36,6 +38,7 @@ def reset():
 
 # Функция для отправки G-кода
 def send_gcode(gcode):
+
     s.write(str.encode(gcode + "\n"))
     print(s.readline().strip().decode('utf-8'))
     print('Sending: ' + gcode)
@@ -47,6 +50,11 @@ reset()
 def process_commands_from_file(filename):
     with open(filename, 'r') as file:
         for line in file:
+            if find.Chek(model) == 1:
+                send_gcode('M3 S40')
+                while find.Chek(model) == 1:
+                    pass
+                send_gcode('M5 S40')
             line = line.strip()
             if line.startswith('G1'):  # Обрабатываем только команды, начинающиеся с G1
                 parts = line.split()
@@ -71,26 +79,30 @@ filename = '../drawing_app/gcode_files/drawing.gcode'
 
 # Обработка команд из файла
 
-model = YOLO('best.pt')
-model.fuse()
-kfx = 2.8
-kfy = 2.8
+
+kfx = 3.1
+kfy = 3.2
 
 
 
 while True:
-    y, x = find.process_webcam_with_detection(model)
-    print(x, y)
+    y, x, height, width = find.process_webcam_with_detection_low(model)
+    print((width - y), x)
+    #input()
 
-    x_coefficient = (x - 160) / kfx
-    y_coefficient = (y - 32) / kfy
+    x_coefficient = ((width - y) - 120) / kfx
+    y_coefficient = (x - 20) / kfy
     print(x_coefficient)
-    find.process_webcam_with_detection_low(model)
+    print("ОК")
+
 
     # Если объект был убран, обрабатываем команды из файла
     process_commands_from_file(os.path.join(directory, filename))
     # Отправка команды на возврат в начальную позицию
+    send_gcode("M3 S40")
     send_gcode("G1 X0.00 Y0.00")
+    time.sleep(1)
+
 
 # Закрытие последовательного порта
 s.close()

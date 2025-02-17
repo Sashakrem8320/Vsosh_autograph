@@ -116,7 +116,7 @@
             path.push('M3 S40'); // Поднять ручку
             path.push('G4 P0.2'); // Задержка
             path.push('G1 F10000'); // Установить скорость
-            path.push(`G1 X${((canvas.width - 0) / scaleFactor).toFixed(2)} Y${(0 / scaleFactor).toFixed(2)}`); // Вернуться в начальную точку
+             // Вернуться в начальную точку
 
             const gcode = path.join('\n');
             fetch('/save-gcode', {
